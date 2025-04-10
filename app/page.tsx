@@ -5,8 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useState, useEffect } from 'react';
-// Remove individual icon imports and use React icons instead
-import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon, FiUser } from 'react-icons/fi';
 
 interface Task {
   id: number;
@@ -14,7 +13,18 @@ interface Task {
   completed: boolean;
   priority: 'low' | 'medium' | 'high';
   createdAt: string;
+  assignee: string; // New field for the assigned person
 }
+
+// Team members list
+const TEAM_MEMBERS = [
+  "Unassigned",
+  "Alex",
+  "Taylor",
+  "Jordan",
+  "Morgan",
+  "Sam"
+];
 
 export default function CalendarPage() {
   const [tasks, setTasks] = useState<Record<string, Task[]>>({
@@ -29,8 +39,10 @@ export default function CalendarPage() {
   const [currentSlot, setCurrentSlot] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("Unassigned");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
 
   // Initialize local storage
   useEffect(() => {
@@ -60,6 +72,18 @@ export default function CalendarPage() {
     }
   }, [darkMode]);
 
+  // Close assignee dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowAssigneeDropdown(false);
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
   const handleAddTask = () => {
     if (!newTask || !currentSlot) return;
 
@@ -69,6 +93,7 @@ export default function CalendarPage() {
       completed: false,
       priority: selectedPriority,
       createdAt: new Date().toISOString(),
+      assignee: selectedAssignee,
     };
 
     setTasks((prev) => ({
@@ -98,6 +123,15 @@ export default function CalendarPage() {
     setTasks((prev) => ({
       ...prev,
       [slot]: prev[slot].filter((task) => task.id !== taskId),
+    }));
+  };
+
+  const updateTaskAssignee = (slot: string, taskId: number, assignee: string) => {
+    setTasks((prev) => ({
+      ...prev,
+      [slot]: prev[slot].map((task) =>
+        task.id === taskId ? { ...task, assignee } : task
+      ),
     }));
   };
 
@@ -132,7 +166,7 @@ export default function CalendarPage() {
         
         // Create an event for each task
         events.push({
-          title: task.title,
+          title: `${task.title} ${task.assignee !== "Unassigned" ? `(${task.assignee})` : ''}`,
           start: `${selectedDate}T${getTimeForCalendar(startTime)}`,
           end: `${selectedDate}T${getTimeForCalendar(endTime)}`,
           backgroundColor: task.completed ? '#4ade80' : getPriorityBackgroundColor(task.priority),
@@ -141,7 +175,8 @@ export default function CalendarPage() {
           extendedProps: {
             taskId: task.id,
             timeSlot: timeSlot,
-            completed: task.completed
+            completed: task.completed,
+            assignee: task.assignee
           }
         });
       });
@@ -168,6 +203,26 @@ export default function CalendarPage() {
         return '#3b82f6';
     }
   };
+  
+  const getAssigneeColor = (assignee: string) => {
+    if (assignee === "Unassigned") return "text-gray-500";
+    
+    // Generate consistent colors based on name
+    const colors = [
+      "text-blue-500", 
+      "text-purple-500", 
+      "text-pink-500", 
+      "text-indigo-500",
+      "text-teal-500"
+    ];
+    
+    const index = TEAM_MEMBERS.indexOf(assignee) % colors.length;
+    return colors[index >= 0 ? index : 0];
+  };
+
+  const getAssigneeInitial = (name: string) => {
+    return name === "Unassigned" ? "U" : name.charAt(0);
+  };
 
   return (
     <div className={`flex min-h-screen text-black ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-50'} transition-colors duration-300`}>
@@ -177,15 +232,15 @@ export default function CalendarPage() {
         <header className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm flex justify-between items-center`}>
           <div className="flex items-center">
             <FiCalendar className="w-6 h-6 mr-2" />
-            <h1 className="text-xl font-bold">Modern Task Calendar</h1>
+            <h1 className="text-xl font-bold">Work Planner</h1>
           </div>
           <div className="flex items-center space-x-4">
-         {/*    <button 
+            <button 
               onClick={() => setDarkMode(!darkMode)}
               className={`rounded-full p-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
             >
               {darkMode ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
-            </button> */}
+            </button>
             <button 
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
@@ -297,6 +352,45 @@ export default function CalendarPage() {
                             <span className={task.completed ? 'line-through text-gray-500' : ''}>
                               {task.title}
                             </span>
+                            
+                            {/* Assignee badge */}
+                            <div className="relative">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowAssigneeDropdown(task.id);
+                                }}
+                                className={`w-6 h-6 flex items-center justify-center rounded-full ${getAssigneeColor(task.assignee)} bg-opacity-20 hover:bg-opacity-30 font-medium text-xs`}
+                                title={`Assigned to: ${task.assignee}`}
+                              >
+                                {getAssigneeInitial(task.assignee)}
+                              </button>
+                              
+                              {/* Assignee dropdown for this task */}
+                              {showAssigneeDropdown === task.id && (
+                                <div 
+                                  className={`absolute z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="py-1">
+                                    {TEAM_MEMBERS.map((member) => (
+                                      <button
+                                        key={member}
+                                        onClick={() => {
+                                          updateTaskAssignee(timeSlot, task.id, member);
+                                          setShowAssigneeDropdown(false);
+                                        }}
+                                        className={`block w-full text-left px-4 py-2 text-sm ${
+                                          darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                                        } ${member === task.assignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
+                                      >
+                                        {member}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <button
                             onClick={() => deleteTask(timeSlot, task.id)}
@@ -331,6 +425,47 @@ export default function CalendarPage() {
                         >
                           High
                         </button>
+                        
+                        {/* Assignee selector for new task */}
+                        <div className="relative ml-auto">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAssigneeDropdown('new-task');
+                            }}
+                            className={`flex items-center space-x-1 px-2 py-1 rounded text-xs ${
+                              darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                            }`}
+                          >
+                            <FiUser className="w-3 h-3" />
+                            <span>{selectedAssignee}</span>
+                          </button>
+                          
+                          {/* Dropdown for new task assignee */}
+                          {showAssigneeDropdown === 'new-task' && (
+                            <div 
+                              className={`absolute right-0 z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="py-1">
+                                {TEAM_MEMBERS.map((member) => (
+                                  <button
+                                    key={member}
+                                    onClick={() => {
+                                      setSelectedAssignee(member);
+                                      setShowAssigneeDropdown(false);
+                                    }}
+                                    className={`block w-full text-left px-4 py-2 text-sm ${
+                                      darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                                    } ${member === selectedAssignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
+                                  >
+                                    {member}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="flex items-center">
