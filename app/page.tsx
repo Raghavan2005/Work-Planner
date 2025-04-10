@@ -1,286 +1,386 @@
-"use client"
-import FullCalendar from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import interactionPlugin, { Draggable, DropArg } from '@fullcalendar/interaction'
-import timeGridPlugin from '@fullcalendar/timegrid'
-import { Fragment, useEffect, useState } from 'react'
-import { Dialog, Transition } from '@headlessui/react'
-import { CheckIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
-import { EventSourceInput } from '@fullcalendar/core/index.js'
+'use client';
 
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import { useState, useEffect } from 'react';
+// Remove individual icon imports and use React icons instead
+import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon } from 'react-icons/fi';
 
-interface Event {
-  title: string;
-  start: Date | string;
-  allDay: boolean;
+interface Task {
   id: number;
+  title: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: string;
 }
 
-export default function Home() {
-  const [events, setEvents] = useState([
-    { title: 'event 1', id: '1' },
-    { title: 'event 2', id: '2' },
-    { title: 'event 3', id: '3' },
-    { title: 'event 4', id: '4' },
-    { title: 'event 5', id: '5' },
-  ])
-  const [allEvents, setAllEvents] = useState<Event[]>([])
-  const [showModal, setShowModal] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [idToDelete, setIdToDelete] = useState<number | null>(null)
-  const [newEvent, setNewEvent] = useState<Event>({
-    title: '',
-    start: '',
-    allDay: false,
-    id: 0
-  })
+export default function CalendarPage() {
+  const [tasks, setTasks] = useState<Record<string, Task[]>>({
+    '12:00 AM - 10:00 AM': [],
+    '10:00 AM - 12:00 PM': [],
+    '12:00 PM - 3:00 PM': [],
+    '3:00 PM - 5:00 PM': [],
+    '5:00 PM - 8:00 PM': [],
+  });
 
+  const [newTask, setNewTask] = useState<string>('');
+  const [currentSlot, setCurrentSlot] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Initialize local storage
   useEffect(() => {
-    let draggableEl = document.getElementById('draggable-el')
-    if (draggableEl) {
-      new Draggable(draggableEl, {
-        itemSelector: ".fc-event",
-        eventData: function (eventEl) {
-          let title = eventEl.getAttribute("title")
-          let id = eventEl.getAttribute("data")
-          let start = eventEl.getAttribute("start")
-          return { title, id, start }
-        }
-      })
+    const savedTasks = localStorage.getItem('calendarTasks');
+    if (savedTasks) {
+      setTasks(JSON.parse(savedTasks));
     }
-  }, [])
+    
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode) {
+      setDarkMode(JSON.parse(savedDarkMode));
+    }
+  }, []);
 
-  function handleDateClick(arg: { date: Date, allDay: boolean }) {
-    setNewEvent({ ...newEvent, start: arg.date, allDay: arg.allDay, id: new Date().getTime() })
-    setShowModal(true)
-  }
+  // Save to local storage when tasks change
+  useEffect(() => {
+    localStorage.setItem('calendarTasks', JSON.stringify(tasks));
+  }, [tasks]);
 
-  function addEvent(data: DropArg) {
-    const event = { ...newEvent, start: data.date.toISOString(), title: data.draggedEl.innerText, allDay: data.allDay, id: new Date().getTime() }
-    setAllEvents([...allEvents, event])
-  }
+  // Save dark mode preference
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
-  function handleDeleteModal(data: { event: { id: string } }) {
-    setShowDeleteModal(true)
-    setIdToDelete(Number(data.event.id))
-  }
+  const handleAddTask = () => {
+    if (!newTask || !currentSlot) return;
 
-  function handleDelete() {
-    setAllEvents(allEvents.filter(event => Number(event.id) !== Number(idToDelete)))
-    setShowDeleteModal(false)
-    setIdToDelete(null)
-  }
+    const newTaskObj = {
+      id: Date.now(),
+      title: newTask,
+      completed: false,
+      priority: selectedPriority,
+      createdAt: new Date().toISOString(),
+    };
 
-  function handleCloseModal() {
-    setShowModal(false)
-    setNewEvent({
-      title: '',
-      start: '',
-      allDay: false,
-      id: 0
-    })
-    setShowDeleteModal(false)
-    setIdToDelete(null)
-  }
+    setTasks((prev) => ({
+      ...prev,
+      [currentSlot]: [...prev[currentSlot], newTaskObj],
+    }));
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    setNewEvent({
-      ...newEvent,
-      title: e.target.value
-    })
-  }
+    setNewTask('');
+  };
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setAllEvents([...allEvents, newEvent])
-    setShowModal(false)
-    setNewEvent({
-      title: '',
-      start: '',
-      allDay: false,
-      id: 0
-    })
-  }
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleAddTask();
+    }
+  };
+
+  const toggleTaskCompletion = (slot: string, taskId: number) => {
+    setTasks((prev) => ({
+      ...prev,
+      [slot]: prev[slot].map((task) =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      ),
+    }));
+  };
+
+  const deleteTask = (slot: string, taskId: number) => {
+    setTasks((prev) => ({
+      ...prev,
+      [slot]: prev[slot].filter((task) => task.id !== taskId),
+    }));
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'text-red-500';
+      case 'medium':
+        return 'text-amber-500';
+      case 'low':
+        return 'text-green-500';
+      default:
+        return 'text-blue-500';
+    }
+  };
+
+  const getProgressPercentage = () => {
+    const allTasks = Object.values(tasks).flat();
+    if (allTasks.length === 0) return 0;
+    
+    const completedTasks = allTasks.filter(task => task.completed).length;
+    return Math.round((completedTasks / allTasks.length) * 100);
+  };
+
+  // Generate events for the calendar
+  const getCalendarEvents = () => {
+    const events: any[] = [];
+    Object.entries(tasks).forEach(([timeSlot, taskList]) => {
+      taskList.forEach(task => {
+        // Parse the time slot to get approximate start and end times
+        const [startTime, endTime] = timeSlot.split(' - ');
+        
+        // Create an event for each task
+        events.push({
+          title: task.title,
+          start: `${selectedDate}T${getTimeForCalendar(startTime)}`,
+          end: `${selectedDate}T${getTimeForCalendar(endTime)}`,
+          backgroundColor: task.completed ? '#4ade80' : getPriorityBackgroundColor(task.priority),
+          borderColor: task.completed ? '#4ade80' : getPriorityBackgroundColor(task.priority),
+          textColor: '#ffffff',
+          extendedProps: {
+            taskId: task.id,
+            timeSlot: timeSlot,
+            completed: task.completed
+          }
+        });
+      });
+    });
+    return events;
+  };
+
+  // Helper to convert time format for calendar
+  const getTimeForCalendar = (timeStr: string) => {
+    // Convert "12:00 AM" to "00:00:00"
+    const time = new Date(`2000/01/01 ${timeStr}`);
+    return time.toTimeString().split(' ')[0];
+  };
+
+  const getPriorityBackgroundColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return '#ef4444';
+      case 'medium':
+        return '#f59e0b';
+      case 'low':
+        return '#10b981';
+      default:
+        return '#3b82f6';
+    }
+  };
 
   return (
-    <>
-      <nav className="flex justify-between mb-12 border-b border-violet-100 p-4">
-        <h1 className="font-bold text-2xl text-gray-700">Calendar</h1>
-      </nav>
-      <main className="flex min-h-screen flex-col items-center justify-between p-24">
-        <div className="grid grid-cols-10">
-          <div className="col-span-8">
-            <FullCalendar
-              plugins={[
-                dayGridPlugin,
-                interactionPlugin,
-                timeGridPlugin
-              ]}
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'resourceTimelineWook, dayGridMonth,timeGridWeek'
-              }}
-              events={allEvents as EventSourceInput}
-              nowIndicator={true}
-              editable={true}
-              droppable={true}
-              selectable={true}
-              selectMirror={true}
-              dateClick={handleDateClick}
-              drop={(data) => addEvent(data)}
-              eventClick={(data) => handleDeleteModal(data)}
-            />
+    <div className={`flex min-h-screen text-black ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-50'} transition-colors duration-300`}>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm flex justify-between items-center`}>
+          <div className="flex items-center">
+            <FiCalendar className="w-6 h-6 mr-2" />
+            <h1 className="text-xl font-bold">Modern Task Calendar</h1>
           </div>
-          <div id="draggable-el" className="ml-8 w-full border-2 p-2 rounded-md mt-16 lg:h-1/2 bg-violet-50">
-            <h1 className="font-bold text-lg text-center">Drag Event</h1>
-            {events.map(event => (
-              <div
-                className="fc-event border-2 p-1 m-2 w-full rounded-md ml-auto text-center bg-white"
-                title={event.title}
-                key={event.id}
-              >
-                {event.title}
+          <div className="flex items-center space-x-4">
+         {/*    <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className={`rounded-full p-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+            >
+              {darkMode ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
+            </button> */}
+            <button 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+            >
+              <FiList className="w-5 h-5" />
+              {sidebarOpen ? 'Hide Tasks' : 'Show Tasks'}
+            </button>
+          </div>
+        </header>
+
+        {/* Progress Bar */}
+        <div className={`mx-4 mt-4 mb-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full h-4`}>
+          <div 
+            className="bg-blue-500 h-4 rounded-full transition-all duration-500 ease-in-out"
+            style={{ width: `${getProgressPercentage()}%` }}
+          ></div>
+        </div>
+        <div className="text-center text-sm mb-4">
+          <span className="font-medium">{getProgressPercentage()}% Complete</span> - {Object.values(tasks).flat().filter(t => t.completed).length} of {Object.values(tasks).flat().length} tasks completed
+        </div>
+
+        {/* Calendar */}
+        <div className={`flex-1 p-4 ${darkMode ? 'text-black fc-dark-theme' : ''}`}>
+          <FullCalendar
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+            }}
+            initialView="timeGridDay"
+            selectable={true}
+            editable={true}
+            height="100%"
+            events={getCalendarEvents()}
+            dateClick={(info) => {
+              setSelectedDate(info.dateStr.split('T')[0]);
+              // Extract the time and set current slot
+              const clickedHour = new Date(info.dateStr).getHours();
+              
+              // Find the appropriate time slot
+              const matchingSlot = Object.keys(tasks).find(slot => {
+                const [startStr, endStr] = slot.split(' - ');
+                const startHour = convertTimeStrToHour(startStr);
+                const endHour = convertTimeStrToHour(endStr);
+                return clickedHour >= startHour && clickedHour < endHour;
+              });
+              
+              if (matchingSlot) {
+                setCurrentSlot(matchingSlot);
+              }
+            }}
+            eventClick={(info) => {
+              const { taskId, timeSlot } = info.event.extendedProps;
+              if (taskId && timeSlot) {
+                toggleTaskCompletion(timeSlot, taskId);
+              }
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Task Sidebar */}
+      {sidebarOpen && (
+        <div className={`w-96 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-4 shadow-lg border-l transition-all duration-300`}>
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <FiClock className="w-5 h-5 mr-2" />
+            Tasks for {new Date(selectedDate).toLocaleDateString()}
+          </h2>
+          
+          <div className="space-y-6">
+            {/* Time slots */}
+            {Object.keys(tasks).map((timeSlot) => (
+              <div key={timeSlot} className={`rounded-lg ${currentSlot === timeSlot ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : ''} p-2`}>
+                <h3
+                  onClick={() => setCurrentSlot(timeSlot)}
+                  className={`font-medium text-lg cursor-pointer flex items-center justify-between ${
+                    currentSlot === timeSlot ? (darkMode ? 'text-blue-300' : 'text-blue-600') : ''
+                  }`}
+                >
+                  <span>{timeSlot}</span>
+                  <span className="text-sm font-normal">
+                    {tasks[timeSlot].filter(t => t.completed).length}/{tasks[timeSlot].length}
+                  </span>
+                </h3>
+
+                {/* Display tasks for the current time slot */}
+                {currentSlot === timeSlot && (
+                  <div className="space-y-2 mt-3">
+                    {tasks[timeSlot].length > 0 ? (
+                      tasks[timeSlot].map((task) => (
+                        <div 
+                          key={task.id} 
+                          className={`flex items-center justify-between p-2 rounded-md ${
+                            darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                          } ${task.completed ? (darkMode ? 'bg-gray-600/50' : 'bg-gray-100') : ''}`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => toggleTaskCompletion(timeSlot, task.id)}
+                              className="focus:outline-none"
+                            >
+                              {task.completed ? (
+                                <FiCheck className="w-5 h-5 text-green-500" />
+                              ) : (
+                                <FiCircle className={`w-5 h-5 ${getPriorityColor(task.priority)}`} />
+                              )}
+                            </button>
+                            <span className={task.completed ? 'line-through text-gray-500' : ''}>
+                              {task.title}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => deleteTask(timeSlot, task.id)}
+                            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-500' : 'hover:bg-gray-200'}`}
+                          >
+                            <FiX className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm italic">No tasks for this time slot</p>
+                    )}
+
+                    {/* Add task input */}
+                    <div className="mt-3">
+                      <div className="flex space-x-2 mb-2">
+                        <button 
+                          onClick={() => setSelectedPriority('low')}
+                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'low' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-700'}`}
+                        >
+                          Low
+                        </button>
+                        <button 
+                          onClick={() => setSelectedPriority('medium')}
+                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'medium' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700'}`}
+                        >
+                          Medium
+                        </button>
+                        <button 
+                          onClick={() => setSelectedPriority('high')}
+                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'high' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'}`}
+                        >
+                          High
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        <input
+                          type="text"
+                          value={newTask}
+                          onChange={(e) => setNewTask(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Add a task"
+                          className={`flex-1 p-2 rounded-l ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-white' 
+                              : 'border border-gray-300'
+                          }`}
+                        />
+                        <button
+                          onClick={handleAddTask}
+                          disabled={!newTask}
+                          className={`p-2 rounded-r ${
+                            newTask
+                              ? (darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600')
+                              : (darkMode ? 'bg-gray-700 cursor-not-allowed' : 'bg-gray-300 cursor-not-allowed')
+                          } text-white`}
+                        >
+                          <FiPlus className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
 
-        <Transition.Root show={showDeleteModal} as={Fragment}>
-          <Dialog as="div" className="relative z-10" onClose={setShowDeleteModal}>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0"
-              enterTo="opacity-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100"
-              leaveTo="opacity-0"
-
-            >
-              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            </Transition.Child>
-
-            <div className="fixed inset-0 z-10 overflow-y-auto">
-              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <Transition.Child
-                  as={Fragment}
-                  enter="ease-out duration-300"
-                  enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                  enterTo="opacity-100 translate-y-0 sm:scale-100"
-                  leave="ease-in duration-200"
-                  leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                  leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                >
-                  <Dialog.Panel className="relative transform overflow-hidden rounded-lg
-                   bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
-                  >
-                    <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                      <div className="sm:flex sm:items-start">
-                        <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center 
-                      justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                          <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
-                        </div>
-                        <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                          <Dialog.Title as="h3" className="text-base font-semibold leading-6 text-gray-900">
-                            Delete Event
-                          </Dialog.Title>
-                          <div className="mt-2">
-                            <p className="text-sm text-gray-500">
-                              Are you sure you want to delete this event?
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                      <button type="button" className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm 
-                      font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto" onClick={handleDelete}>
-                        Delete
-                      </button>
-                      <button type="button" className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 
-                      shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                        onClick={handleCloseModal}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </Dialog.Panel>
-                </Transition.Child>
-              </div>
-            </div>
-          </Dialog>
-        </Transition.Root>
-        <Transition.Root show={showModal} as={Fragment}>
-          <Dialog as="div" className="relative z-10" onClose={setShowModal}>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0"
-              enterTo="opacity-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100"
-              leaveTo="opacity-0"
-            >
-              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            </Transition.Child>
-
-            <div className="fixed inset-0 z-10 overflow-y-auto">
-              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <Transition.Child
-                  as={Fragment}
-                  enter="ease-out duration-300"
-                  enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                  enterTo="opacity-100 translate-y-0 sm:scale-100"
-                  leave="ease-in duration-200"
-                  leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                  leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                >
-                  <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
-                    <div>
-                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                        <CheckIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
-                      </div>
-                      <div className="mt-3 text-center sm:mt-5">
-                        <Dialog.Title as="h3" className="text-base font-semibold leading-6 text-gray-900">
-                          Add Event
-                        </Dialog.Title>
-                        <form action="submit" onSubmit={handleSubmit}>
-                          <div className="mt-2">
-                            <input type="text" name="title" className="block w-full rounded-md border-0 py-1.5 text-gray-900 
-                            shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 
-                            focus:ring-2 
-                            focus:ring-inset focus:ring-violet-600 
-                            sm:text-sm sm:leading-6"
-                              value={newEvent.title} onChange={(e) => handleChange(e)} placeholder="Title" />
-                          </div>
-                          <div className="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
-                            <button
-                              type="submit"
-                              className="inline-flex w-full justify-center rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 sm:col-start-2 disabled:opacity-25"
-                              disabled={newEvent.title === ''}
-                            >
-                              Create
-                            </button>
-                            <button
-                              type="button"
-                              className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:col-start-1 sm:mt-0"
-                              onClick={handleCloseModal}
-
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </Dialog.Panel>
-                </Transition.Child>
-              </div>
-            </div>
-          </Dialog>
-        </Transition.Root>
-      </main >
-    </>
-  )
+// Helper function to convert time string to hour number
+function convertTimeStrToHour(timeStr: string): number {
+  const [hourStr, minuteStr] = timeStr.split(':');
+  let hour = parseInt(hourStr);
+  
+  // Handle AM/PM format
+  if (minuteStr && minuteStr.includes('PM') && hour < 12) {
+    hour += 12;
+  } else if (minuteStr && minuteStr.includes('AM') && hour === 12) {
+    hour = 0;
+  }
+  
+  return hour;
 }
