@@ -16,5 +16,5 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
-export { app, analytics };         // 👈 for auth.ts
-export const db = getFirestore(app); // 👈 for Firestore access
+export { app, analytics };        
+export const db = getFirestore(app); 

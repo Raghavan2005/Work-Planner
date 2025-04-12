@@ -10,17 +10,16 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase
 import { db } from '../../firebase-config';
 
 interface Task {
-  id?: string; // Firestore ID
+  id?: string; 
   title: string;
   completed: boolean;
   priority: 'low' | 'medium' | 'high';
   createdAt: string;
-  assignee: string; // New field for the assigned person
-  timeSlot: string; // To store the time slot for Firestore
-  date: string; // To store the date for Firestore
+  assignee: string; 
+  timeSlot: string; 
+  date: string; 
 }
 
-// Team members list
 const TEAM_MEMBERS = [
   "Unassigned",
   "Alex",
@@ -53,7 +52,6 @@ export default function CalendarPage() {
   const [newTaskDropdownOpen, setNewTaskDropdownOpen] = useState(false);
   const [taskDropdownOpen, setTaskDropdownOpen] = useState<string | null>(null);
 
-  // Initialize dark mode from local storage
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode) {
@@ -61,7 +59,7 @@ export default function CalendarPage() {
     }
   }, []);
 
-  // Apply dark mode class
+  
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -71,7 +69,6 @@ export default function CalendarPage() {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
 
-  // Fetch tasks from Firestore on component mount and when selectedDate changes
   useEffect(() => {
     const fetchTasks = async () => {
       setLoading(true);
@@ -91,7 +88,7 @@ export default function CalendarPage() {
           acc[task.timeSlot] = acc[task.timeSlot] || [];
           acc[task.timeSlot].push(task);
           return acc;
-        }, { ...initialTasksState }); // Ensure all time slots are present
+        }, { ...initialTasksState }); 
 
         setTasks(groupedTasks);
       } catch (error) {
@@ -104,7 +101,7 @@ export default function CalendarPage() {
     fetchTasks();
   }, [selectedDate]);
 
-  // Close assignee dropdown when clicking outside
+
   useEffect(() => {
     const handleClickOutside = () => {
       setShowAssigneeDropdown(false);
@@ -329,7 +326,7 @@ export default function CalendarPage() {
               center: 'title',
               right: 'dayGridMonth,timeGridWeek,timeGridDay',
             }}
-            initialView="dayGridMonth" // Use "dayGridMonth" for month view
+            initialView="dayGridMonth" 
             selectable={true}
             editable={false}
             height="100%"
@@ -338,7 +335,7 @@ export default function CalendarPage() {
               const clickedDate = info.dateStr.split('T')[0];
               if (clickedDate !== selectedDate) {
                 setSelectedDate(clickedDate);
-                setCurrentSlot(''); // Reset the current slot when a new date is selected
+                setCurrentSlot('');
               }
             }}
             eventClick={(info) => {
@@ -348,7 +345,7 @@ export default function CalendarPage() {
               }
             }}
             eventContent={(eventInfo) => {
-              // Custom rendering for events
+            
               return (
                 <div
                   className={`flex items-center justify-center text-xs rounded px-1 ${
@@ -570,12 +567,11 @@ export default function CalendarPage() {
   );
 }
 
-// Helper function to convert time string to hour number
+
 function convertTimeStrToHour(timeStr: string): number {
   const [hourStr, minuteStr] = timeStr.split(':');
   let hour = parseInt(hourStr);
 
-  // Handle AM/PM format
   if (minuteStr && minuteStr.includes('PM') && hour < 12) {
     hour += 12;
   } else if (minuteStr && minuteStr.includes('AM') && hour === 12) {

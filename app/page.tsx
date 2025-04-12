@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
-import { app } from '../firebase-config'; // Import your existing Firebase config
+import { app } from '../firebase-config'; 
 import { useRouter } from 'next/navigation';
 
 const auth = getAuth(app);
