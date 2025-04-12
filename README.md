@@ -1,6 +1,3 @@
-# Save the provided README content as a README.md file
-
-readme_content = """
 # 🚀 Next.js + TypeScript Project
 
 This is a **Next.js** project built with **TypeScript**. Follow the steps below to install dependencies and run the development server.
@@ -21,3 +18,9 @@ This is a **Next.js** project built with **TypeScript**. Follow the steps below 
    ```bash
    git clone <repo-url>
    cd <project-folder>
+```
+
+
+ npm install
+npm install next
+npm run dev
