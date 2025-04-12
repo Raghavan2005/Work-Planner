@@ -1,521 +1,90 @@
 'use client';
 
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import { useState, useEffect } from 'react';
-import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon, FiUser } from 'react-icons/fi';
+import { useEffect, useState } from 'react';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+import { app } from '../firebase-config'; // Import your existing Firebase config
+import { useRouter } from 'next/navigation';
 
-interface Task {
-  id: number;
-  title: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-  createdAt: string;
-  assignee: string; // New field for the assigned person
-}
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-// Team members list
-const TEAM_MEMBERS = [
-  "Unassigned",
-  "Alex",
-  "Taylor",
-  "Jordan",
-  "Morgan",
-  "Sam"
-];
+export default function LoginPage() {
+    const [user, setUser] = useState(null);
+    const router = useRouter();
 
-export default function CalendarPage() {
-  const [tasks, setTasks] = useState<Record<string, Task[]>>({
-    '12:00 AM - 10:00 AM': [],
-    '10:00 AM - 12:00 PM': [],
-    '12:00 PM - 3:00 PM': [],
-    '3:00 PM - 5:00 PM': [],
-    '5:00 PM - 8:00 PM': [],
-  });
-
-  const [newTask, setNewTask] = useState<string>('');
-  const [currentSlot, setCurrentSlot] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [selectedAssignee, setSelectedAssignee] = useState<string>("Unassigned");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
-
-  // Initialize local storage
-  useEffect(() => {
-    const savedTasks = localStorage.getItem('calendarTasks');
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
-    }
-    
-    const savedDarkMode = localStorage.getItem('darkMode');
-    if (savedDarkMode) {
-      setDarkMode(JSON.parse(savedDarkMode));
-    }
-  }, []);
-
-  // Save to local storage when tasks change
-  useEffect(() => {
-    localStorage.setItem('calendarTasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  // Save dark mode preference
-  useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
-
-  // Close assignee dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setShowAssigneeDropdown(false);
-    };
-    
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, []);
-
-  const handleAddTask = () => {
-    if (!newTask || !currentSlot) return;
-
-    const newTaskObj = {
-      id: Date.now(),
-      title: newTask,
-      completed: false,
-      priority: selectedPriority,
-      createdAt: new Date().toISOString(),
-      assignee: selectedAssignee,
-    };
-
-    setTasks((prev) => ({
-      ...prev,
-      [currentSlot]: [...prev[currentSlot], newTaskObj],
-    }));
-
-    setNewTask('');
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleAddTask();
-    }
-  };
-
-  const toggleTaskCompletion = (slot: string, taskId: number) => {
-    setTasks((prev) => ({
-      ...prev,
-      [slot]: prev[slot].map((task) =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      ),
-    }));
-  };
-
-  const deleteTask = (slot: string, taskId: number) => {
-    setTasks((prev) => ({
-      ...prev,
-      [slot]: prev[slot].filter((task) => task.id !== taskId),
-    }));
-  };
-
-  const updateTaskAssignee = (slot: string, taskId: number, assignee: string) => {
-    setTasks((prev) => ({
-      ...prev,
-      [slot]: prev[slot].map((task) =>
-        task.id === taskId ? { ...task, assignee } : task
-      ),
-    }));
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-500';
-      case 'medium':
-        return 'text-amber-500';
-      case 'low':
-        return 'text-green-500';
-      default:
-        return 'text-blue-500';
-    }
-  };
-
-  const getProgressPercentage = () => {
-    const allTasks = Object.values(tasks).flat();
-    if (allTasks.length === 0) return 0;
-    
-    const completedTasks = allTasks.filter(task => task.completed).length;
-    return Math.round((completedTasks / allTasks.length) * 100);
-  };
-
-  // Generate events for the calendar
-  const getCalendarEvents = () => {
-    const events: any[] = [];
-    Object.entries(tasks).forEach(([timeSlot, taskList]) => {
-      taskList.forEach(task => {
-        // Parse the time slot to get approximate start and end times
-        const [startTime, endTime] = timeSlot.split(' - ');
-        
-        // Create an event for each task
-        events.push({
-          title: `${task.title} ${task.assignee !== "Unassigned" ? `(${task.assignee})` : ''}`,
-          start: `${selectedDate}T${getTimeForCalendar(startTime)}`,
-          end: `${selectedDate}T${getTimeForCalendar(endTime)}`,
-          backgroundColor: task.completed ? '#4ade80' : getPriorityBackgroundColor(task.priority),
-          borderColor: task.completed ? '#4ade80' : getPriorityBackgroundColor(task.priority),
-          textColor: '#ffffff',
-          extendedProps: {
-            taskId: task.id,
-            timeSlot: timeSlot,
-            completed: task.completed,
-            assignee: task.assignee
-          }
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
         });
-      });
-    });
-    return events;
-  };
+        return () => unsubscribe();
+    }, []);
 
-  // Helper to convert time format for calendar
-  const getTimeForCalendar = (timeStr: string) => {
-    // Convert "12:00 AM" to "00:00:00"
-    const time = new Date(`2000/01/01 ${timeStr}`);
-    return time.toTimeString().split(' ')[0];
-  };
+    const handleGoogleSignIn = async () => {
+        try {
+            await signInWithPopup(auth, provider);
+            router.push('/home');
+        } catch (error) {
+            console.error('Error signing in with Google:', error);
+        }
+    };
 
-  const getPriorityBackgroundColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return '#ef4444';
-      case 'medium':
-        return '#f59e0b';
-      case 'low':
-        return '#10b981';
-      default:
-        return '#3b82f6';
-    }
-  };
-  
-  const getAssigneeColor = (assignee: string) => {
-    if (assignee === "Unassigned") return "text-gray-500";
-    
-    // Generate consistent colors based on name
-    const colors = [
-      "text-blue-500", 
-      "text-purple-500", 
-      "text-pink-500", 
-      "text-indigo-500",
-      "text-teal-500"
-    ];
-    
-    const index = TEAM_MEMBERS.indexOf(assignee) % colors.length;
-    return colors[index >= 0 ? index : 0];
-  };
+    const handleSignOut = async () => {
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error('Error signing out:', error);
+        }
+    };
 
-  const getAssigneeInitial = (name: string) => {
-    return name === "Unassigned" ? "U" : name.charAt(0);
-  };
-
-  return (
-    <div className={`flex min-h-screen text-black ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-50'} transition-colors duration-300`}>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm flex justify-between items-center`}>
-          <div className="flex items-center">
-            <FiCalendar className="w-6 h-6 mr-2" />
-            <h1 className="text-xl font-bold">Work Planner</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button 
-              onClick={() => setDarkMode(!darkMode)}
-              className={`rounded-full p-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-            >
-              {darkMode ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
-            </button>
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
-            >
-              <FiList className="w-5 h-5" />
-              {sidebarOpen ? 'Hide Tasks' : 'Show Tasks'}
-            </button>
-          </div>
-        </header>
-
-        {/* Progress Bar */}
-        <div className={`mx-4 mt-4 mb-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full h-4`}>
-          <div 
-            className="bg-blue-500 h-4 rounded-full transition-all duration-500 ease-in-out"
-            style={{ width: `${getProgressPercentage()}%` }}
-          ></div>
-        </div>
-        <div className="text-center text-sm mb-4">
-          <span className="font-medium">{getProgressPercentage()}% Complete</span> - {Object.values(tasks).flat().filter(t => t.completed).length} of {Object.values(tasks).flat().length} tasks completed
-        </div>
-
-        {/* Calendar */}
-        <div className={`flex-1 p-4 ${darkMode ? 'text-black fc-dark-theme' : ''}`}>
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            initialView="timeGridDay"
-            selectable={true}
-            editable={true}
-            height="100%"
-            events={getCalendarEvents()}
-            dateClick={(info) => {
-              setSelectedDate(info.dateStr.split('T')[0]);
-              // Extract the time and set current slot
-              const clickedHour = new Date(info.dateStr).getHours();
-              
-              // Find the appropriate time slot
-              const matchingSlot = Object.keys(tasks).find(slot => {
-                const [startStr, endStr] = slot.split(' - ');
-                const startHour = convertTimeStrToHour(startStr);
-                const endHour = convertTimeStrToHour(endStr);
-                return clickedHour >= startHour && clickedHour < endHour;
-              });
-              
-              if (matchingSlot) {
-                setCurrentSlot(matchingSlot);
-              }
-            }}
-            eventClick={(info) => {
-              const { taskId, timeSlot } = info.event.extendedProps;
-              if (taskId && timeSlot) {
-                toggleTaskCompletion(timeSlot, taskId);
-              }
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Task Sidebar */}
-      {sidebarOpen && (
-        <div className={`w-96 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-4 shadow-lg border-l transition-all duration-300`}>
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <FiClock className="w-5 h-5 mr-2" />
-            Tasks for {new Date(selectedDate).toLocaleDateString()}
-          </h2>
-          
-          <div className="space-y-6">
-            {/* Time slots */}
-            {Object.keys(tasks).map((timeSlot) => (
-              <div key={timeSlot} className={`rounded-lg ${currentSlot === timeSlot ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : ''} p-2`}>
-                <h3
-                  onClick={() => setCurrentSlot(timeSlot)}
-                  className={`font-medium text-lg cursor-pointer flex items-center justify-between ${
-                    currentSlot === timeSlot ? (darkMode ? 'text-blue-300' : 'text-blue-600') : ''
-                  }`}
-                >
-                  <span>{timeSlot}</span>
-                  <span className="text-sm font-normal">
-                    {tasks[timeSlot].filter(t => t.completed).length}/{tasks[timeSlot].length}
-                  </span>
-                </h3>
-
-                {/* Display tasks for the current time slot */}
-                {currentSlot === timeSlot && (
-                  <div className="space-y-2 mt-3">
-                    {tasks[timeSlot].length > 0 ? (
-                      tasks[timeSlot].map((task) => (
-                        <div 
-                          key={task.id} 
-                          className={`flex items-center justify-between p-2 rounded-md ${
-                            darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
-                          } ${task.completed ? (darkMode ? 'bg-gray-600/50' : 'bg-gray-100') : ''}`}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => toggleTaskCompletion(timeSlot, task.id)}
-                              className="focus:outline-none"
-                            >
-                              {task.completed ? (
-                                <FiCheck className="w-5 h-5 text-green-500" />
-                              ) : (
-                                <FiCircle className={`w-5 h-5 ${getPriorityColor(task.priority)}`} />
-                              )}
-                            </button>
-                            <span className={task.completed ? 'line-through text-gray-500' : ''}>
-                              {task.title}
-                            </span>
-                            
-                            {/* Assignee badge */}
-                            <div className="relative">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowAssigneeDropdown(task.id);
-                                }}
-                                className={`w-6 h-6 flex items-center justify-center rounded-full ${getAssigneeColor(task.assignee)} bg-opacity-20 hover:bg-opacity-30 font-medium text-xs`}
-                                title={`Assigned to: ${task.assignee}`}
-                              >
-                                {getAssigneeInitial(task.assignee)}
-                              </button>
-                              
-                              {/* Assignee dropdown for this task */}
-                              {showAssigneeDropdown === task.id && (
-                                <div 
-                                  className={`absolute z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="py-1">
-                                    {TEAM_MEMBERS.map((member) => (
-                                      <button
-                                        key={member}
-                                        onClick={() => {
-                                          updateTaskAssignee(timeSlot, task.id, member);
-                                          setShowAssigneeDropdown(false);
-                                        }}
-                                        className={`block w-full text-left px-4 py-2 text-sm ${
-                                          darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
-                                        } ${member === task.assignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
-                                      >
-                                        {member}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => deleteTask(timeSlot, task.id)}
-                            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-500' : 'hover:bg-gray-200'}`}
-                          >
-                            <FiX className="w-4 h-4 text-gray-500" />
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm italic">No tasks for this time slot</p>
-                    )}
-
-                    {/* Add task input */}
-                    <div className="mt-3">
-                      <div className="flex space-x-2 mb-2">
-                        <button 
-                          onClick={() => setSelectedPriority('low')}
-                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'low' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-700'}`}
-                        >
-                          Low
-                        </button>
-                        <button 
-                          onClick={() => setSelectedPriority('medium')}
-                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'medium' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700'}`}
-                        >
-                          Medium
-                        </button>
-                        <button 
-                          onClick={() => setSelectedPriority('high')}
-                          className={`px-2 py-1 rounded text-xs ${selectedPriority === 'high' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'}`}
-                        >
-                          High
-                        </button>
-                        
-                        {/* Assignee selector for new task */}
-                        <div className="relative ml-auto">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowAssigneeDropdown('new-task');
-                            }}
-                            className={`flex items-center space-x-1 px-2 py-1 rounded text-xs ${
-                              darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
-                            }`}
-                          >
-                            <FiUser className="w-3 h-3" />
-                            <span>{selectedAssignee}</span>
-                          </button>
-                          
-                          {/* Dropdown for new task assignee */}
-                          {showAssigneeDropdown === 'new-task' && (
-                            <div 
-                              className={`absolute right-0 z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="py-1">
-                                {TEAM_MEMBERS.map((member) => (
-                                  <button
-                                    key={member}
-                                    onClick={() => {
-                                      setSelectedAssignee(member);
-                                      setShowAssigneeDropdown(false);
-                                    }}
-                                    className={`block w-full text-left px-4 py-2 text-sm ${
-                                      darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
-                                    } ${member === selectedAssignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
-                                  >
-                                    {member}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input
-                          type="text"
-                          value={newTask}
-                          onChange={(e) => setNewTask(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          placeholder="Add a task"
-                          className={`flex-1 p-2 rounded-l ${
-                            darkMode 
-                              ? 'bg-gray-700 border-gray-600 text-white' 
-                              : 'border border-gray-300'
-                          }`}
-                        />
-                        <button
-                          onClick={handleAddTask}
-                          disabled={!newTask}
-                          className={`p-2 rounded-r ${
-                            newTask
-                              ? (darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600')
-                              : (darkMode ? 'bg-gray-700 cursor-not-allowed' : 'bg-gray-300 cursor-not-allowed')
-                          } text-white`}
-                        >
-                          <FiPlus className="w-5 h-5" />
-                        </button>
-                      </div>
+    return (
+        <div className="flex flex-col items-center mt-12">
+            <h1 className="text-2xl font-bold mb-6">Login Page</h1>
+            {user ? (
+                <div className="flex flex-col items-center">
+                    <div className="mb-4 text-center">
+                        {user.photoURL && (
+                            <img 
+                                src={user.photoURL} 
+                                alt="Profile" 
+                                className="w-16 h-16 rounded-full mx-auto mb-2" 
+                            />
+                        )}
+                        <p className="text-lg font-medium">Welcome, {user.displayName}</p>
+                        <p className="text-sm text-gray-600">{user.email}</p>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                    <button 
+                        onClick={handleSignOut}
+                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+            ) : (
+                <button 
+                    onClick={handleGoogleSignIn}
+                    className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded shadow hover:shadow-md transition"
+                >
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                        <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                        />
+                        <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        />
+                    </svg>
+                    Sign in with Google
+                </button>
+            )}
         </div>
-      )}
-    </div>
-  );
-}
-
-// Helper function to convert time string to hour number
-function convertTimeStrToHour(timeStr: string): number {
-  const [hourStr, minuteStr] = timeStr.split(':');
-  let hour = parseInt(hourStr);
-  
-  // Handle AM/PM format
-  if (minuteStr && minuteStr.includes('PM') && hour < 12) {
-    hour += 12;
-  } else if (minuteStr && minuteStr.includes('AM') && hour === 12) {
-    hour = 0;
-  }
-  
-  return hour;
+    );
 }
