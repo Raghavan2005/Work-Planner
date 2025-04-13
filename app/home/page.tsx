@@ -4,10 +4,12 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { useState, useEffect } from 'react';
-import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon, FiUser } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiPlus, FiCheck, FiCircle, FiClock, FiX, FiCalendar, FiList, FiSun, FiMoon, FiUser, FiEdit, FiLogOut } from 'react-icons/fi';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase-config';
+import { getAuth, signOut } from "firebase/auth";
+import { useRouter } from 'next/navigation';
 
 interface Task {
   id?: string; 
@@ -22,21 +24,29 @@ interface Task {
 
 const TEAM_MEMBERS = [
   "Unassigned",
-  "Alex",
-  "Taylor",
-  "Jordan",
-  "Morgan",
-  "Sam"
+  "Ananya",
+  "Divya",
+  "Kavya",
+  "Meera",
+  "Sowmya",
+  "Sanjana"
 ];
 
+
 export default function CalendarPage() {
+
+  const router = useRouter();
+  const auth = getAuth();
   const initialTasksState: Record<string, Task[]> = {
-    '12:00 AM - 10:00 AM': [],
-    '10:00 AM - 12:00 PM': [],
-    '12:00 PM - 3:00 PM': [],
-    '3:00 PM - 5:00 PM': [],
-    '5:00 PM - 8:00 PM': [],
+    '8:00 AM - 9:00 AM': [],
+    '9:00 AM - 10:00 AM': [], 
+    '10:00 AM - 11:00 AM': [],
+    '11:00 AM - 12:00 PM': [],
+    '12:00 PM - 1:00 PM': [],
+    '1:00 PM - 2:00 PM': [],
+    '2:00 PM - 3:00 PM': [],
   };
+  
   const [tasks, setTasks] = useState<Record<string, Task[]>>(initialTasksState);
   const [loading, setLoading] = useState(true);
   const [newTask, setNewTask] = useState<string>('');
@@ -51,7 +61,15 @@ export default function CalendarPage() {
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [newTaskDropdownOpen, setNewTaskDropdownOpen] = useState(false);
   const [taskDropdownOpen, setTaskDropdownOpen] = useState<string | null>(null);
+  
+  // New state for editing task
+  const [editingTask, setEditingTask] = useState<{id: string, slot: string, title: string} | null>(null);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  
+  // Ref for clicking outside of dropdowns
+  const profileDropdownRef = useRef(null);
 
+ 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode) {
@@ -103,8 +121,16 @@ export default function CalendarPage() {
 
 
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (event) => {
+      // Close assignee dropdown
       setShowAssigneeDropdown(false);
+      
+      // Close profile dropdown
+      if (profileDropdownRef.current && 
+          !profileDropdownRef.current.contains(event.target) &&
+          event.target.id !== 'profile-button') {
+        setProfileDropdownOpen(false);
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
@@ -138,9 +164,34 @@ export default function CalendarPage() {
     }
   };
 
+  // Function to handle editing task
+  const handleEditTask = async () => {
+    if (!editingTask || !editingTask.title.trim()) return;
+
+    try {
+      const taskRef = doc(db, 'tasks', editingTask.id);
+      await updateDoc(taskRef, { title: editingTask.title });
+      
+      setTasks((prev) => ({
+        ...prev,
+        [editingTask.slot]: prev[editingTask.slot].map((task) =>
+          task.id === editingTask.id ? { ...task, title: editingTask.title } : task
+        ),
+      }));
+      
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleAddTask();
+      if (editingTask) {
+        handleEditTask();
+      } else {
+        handleAddTask();
+      }
     }
   };
 
@@ -207,6 +258,7 @@ export default function CalendarPage() {
     const completedTasks = allTasks.filter(task => task.completed).length;
     return Math.round((completedTasks / allTasks.length) * 100);
   };
+  
   useEffect(() => {
     const formatted = new Date(selectedDate).toLocaleDateString('en-US'); // or 'en-IN'
     setFormattedDate(formatted);
@@ -278,6 +330,19 @@ export default function CalendarPage() {
   const getAssigneeInitial = (name: string) => {
     return name === "Unassigned" ? "U" : name.charAt(0);
   };
+ 
+  const handleSignOut = async  () => {
+   
+  
+    try {
+      await signOut(auth);
+      console.log("sdgdfg")
+      router.push("/"); 
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+    setProfileDropdownOpen(false);
+  };
 
   return (
     <div className={`flex min-h-screen text-black ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-50'} transition-colors duration-300`}>
@@ -303,6 +368,39 @@ export default function CalendarPage() {
               <FiList className="w-5 h-5" />
               {sidebarOpen ? 'Hide Tasks' : 'Show Tasks'}
             </button>
+            
+            {/* Profile Button */}
+            <div className="relative" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}>
+              <button
+                id="profile-button"
+                
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-blue-100 hover:bg-blue-200'}`}
+              >
+                <FiUser className="w-5 h-5" />
+              </button>
+              
+              {/* Profile Dropdown */}
+              {profileDropdownOpen && (
+                <div 
+                  ref={profileDropdownRef}
+                  className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${
+                    darkMode ? 'bg-gray-800' : 'bg-white'
+                  } ring-1 ring-black ring-opacity-5 z-50`}
+                >
+                  <div className="py-1">
+                    <button
+                      onClick={handleSignOut}
+                      className={`flex items-center w-full text-left px-4 py-2 text-sm ${
+                        darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <FiLogOut className="mr-2" />
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -318,7 +416,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar */}
-        <div className={`flex-1 p-4 ${darkMode ? 'text-black fc-dark-theme' : ''}`}>
+        <div className={`flex-1 text-x ${darkMode ? 'fc-dark-theme' : ''}`}>
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             headerToolbar={{
@@ -329,7 +427,15 @@ export default function CalendarPage() {
             initialView="dayGridMonth" 
             selectable={true}
             editable={false}
-            height="100%"
+            dayHeaderContent={(arg) => {
+              const date = arg.date;
+              const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date);
+              const day = date.getDate();
+              const month = date.getMonth() + 1;
+              return `${weekday} ${day}/${month}`;
+            }}
+               
+            height="120%"
             events={getCalendarEvents()}
             dateClick={(info) => {
               const clickedDate = info.dateStr.split('T')[0];
@@ -365,9 +471,9 @@ export default function CalendarPage() {
       {sidebarOpen && (
         <div className={`w-96 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-4 shadow-lg border-l transition-all duration-300`}>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
-  <FiClock className="w-5 h-5 mr-2" />
-  Tasks for {formattedDate}
-</h2>
+            <FiClock className="w-5 h-5 mr-2" />
+            Tasks for {formattedDate}
+          </h2>
 
           <div className="space-y-6">
             {/* Time slots */}
@@ -396,66 +502,114 @@ export default function CalendarPage() {
                             darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
                           } ${task.completed ? (darkMode ? 'bg-gray-600/50' : 'bg-gray-100') : ''}`}
                         >
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => toggleTaskCompletion(timeSlot, task.id!, task.completed)}
-                              className="focus:outline-none"
-                            >
-                              {task.completed ? (
-                                <FiCheck className="w-5 h-5 text-green-500" />
-                              ) : (
-                                <FiCircle className={`w-5 h-5 ${getPriorityColor(task.priority)}`} />
-                              )}
-                            </button>
-                            <span className={task.completed ? 'line-through text-gray-500' : ''}>
-                              {task.title}
-                            </span>
-
-                            {/* Assignee badge */}
-                            <div className="relative">
+                          {editingTask && editingTask.id === task.id ? (
+                            // Edit mode
+                            <div className="flex items-center flex-1 mr-2">
+                              <input
+                                type="text"
+                                value={editingTask.title}
+                                onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
+                                onKeyDown={handleKeyPress}
+                                className={`flex-1 p-1 rounded ${
+                                  darkMode
+                                    ? 'bg-gray-700 border-gray-600 text-white'
+                                    : 'border border-gray-300'
+                                }`}
+                                autoFocus
+                              />
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTaskDropdownOpen(task.id!);
-                                }}
-                                className={`w-6 h-6 flex items-center justify-center rounded-full ${getAssigneeColor(task.assignee)} bg-opacity-20 hover:bg-opacity-30 font-medium text-xs`}
-                                title={`Assigned to: ${task.assignee}`}
+                                onClick={handleEditTask}
+                                className={`ml-2 p-1 rounded ${
+                                  darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+                                } text-white`}
                               >
-                                {getAssigneeInitial(task.assignee)}
+                                <FiCheck className="w-4 h-4" />
                               </button>
-
-                              {/* Assignee dropdown for this task */}
-                              {taskDropdownOpen === task.id && (
-                                <div
-                                  className={`absolute z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="py-1">
-                                    {TEAM_MEMBERS.map((member) => (
-                                      <button
-                                        key={member}
-                                        onClick={() => {
-                                          updateTaskAssignee(timeSlot, task.id!, member);
-                                          setTaskDropdownOpen(null);
-                                        }}
-                                        className={`block w-full text-left px-4 py-2 text-sm ${
-                                          darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
-                                        } ${member === task.assignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
-                                      >
-                                        {member}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                              <button
+                                onClick={() => setEditingTask(null)}
+                                className={`ml-2 p-1 rounded ${
+                                  darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'
+                                } text-white`}
+                              >
+                                <FiX className="w-4 h-4" />
+                              </button>
                             </div>
-                          </div>
-                          <button
-                            onClick={() => deleteTask(timeSlot, task.id!)}
-                            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-500' : 'hover:bg-gray-200'}`}
-                          >
-                            <FiX className="w-4 h-4 text-gray-500" />
-                          </button>
+                          ) : (
+                            // View mode
+                            <>
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => toggleTaskCompletion(timeSlot, task.id!, task.completed)}
+                                  className="focus:outline-none"
+                                >
+                                  {task.completed ? (
+                                    <FiCheck className="w-5 h-5 text-green-500" />
+                                  ) : (
+                                    <FiCircle className={`w-5 h-5 ${getPriorityColor(task.priority)}`} />
+                                  )}
+                                </button>
+                                <span className={task.completed ? 'line-through text-gray-500' : ''}>
+                                  {task.title}
+                                </span>
+
+                                {/* Assignee badge */}
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskDropdownOpen(task.id!);
+                                    }}
+                                    className={`w-6 h-6 flex items-center justify-center rounded-full ${getAssigneeColor(task.assignee)} bg-opacity-20 hover:bg-opacity-30 font-medium text-xs`}
+                                    title={`Assigned to: ${task.assignee}`}
+                                  >
+                                    {getAssigneeInitial(task.assignee)}
+                                  </button>
+
+                                  {/* Assignee dropdown for this task */}
+                                  {taskDropdownOpen === task.id && (
+                                    <div
+                                      className={`absolute z-10 mt-1 w-32 rounded-md shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} ring-1 ring-black ring-opacity-5`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="py-1">
+                                        {TEAM_MEMBERS.map((member) => (
+                                          <button
+                                            key={member}
+                                            onClick={() => {
+                                              updateTaskAssignee(timeSlot, task.id!, member);
+                                              setTaskDropdownOpen(null);
+                                            }}
+                                            className={`block w-full text-left px-4 py-2 text-sm ${
+                                              darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                                            } ${member === task.assignee ? (darkMode ? 'bg-gray-600' : 'bg-gray-100') : ''}`}
+                                          >
+                                            {member}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex">
+                                {/* Edit button */}
+                                <button
+                                  onClick={() => setEditingTask({id: task.id!, slot: timeSlot, title: task.title})}
+                                  className={`p-1 rounded-full mr-1 ${darkMode ? 'hover:bg-gray-500' : 'hover:bg-gray-200'}`}
+                                >
+                                  <FiEdit className="w-4 h-4 text-gray-500" />
+                                </button>
+                                
+                                {/* Delete button */}
+                                <button
+                                  onClick={() => deleteTask(timeSlot, task.id!)}
+                                  className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-500' : 'hover:bg-gray-200'}`}
+                                >
+                                  <FiX className="w-4 h-4 text-gray-500" />
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))
                     ) : (
@@ -555,8 +709,7 @@ export default function CalendarPage() {
                           <FiPlus className="w-5 h-5" />
                         </button>
                       </div>
-                    </div>
-                  </div>
+                    </div></div>
                 )}
               </div>
             ))}
