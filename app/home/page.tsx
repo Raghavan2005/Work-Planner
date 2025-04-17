@@ -61,7 +61,7 @@ export default function CalendarPage() {
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [newTaskDropdownOpen, setNewTaskDropdownOpen] = useState(false);
   const [taskDropdownOpen, setTaskDropdownOpen] = useState<string | null>(null);
-  
+ const [showtask, setShowTask] = useState("");
   // New state for editing task
   const [editingTask, setEditingTask] = useState<{id: string, slot: string, title: string} | null>(null);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -98,7 +98,9 @@ export default function CalendarPage() {
           const taskData = doc.data() as Omit<Task, 'id'>;
           if (taskData.date === selectedDate) {
             fetchedTasks.push({ id: doc.id, ...taskData });
+            
           }
+          setShowTask("No Tasks")
         });
 
         // Group tasks by time slot
@@ -416,6 +418,18 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar */}
+        <div className='border-2 m-3 rounded-lg text-center' >
+        <div className='text-[20px] font-bold  ml-3'>
+          Today Tasks
+          <br></br>
+        
+          </div>
+          <div className='text-red-500 mb-4 ml-3 font-semibold text-[16px]'>
+          {showtask}
+          </div>
+
+        </div>
+        
         <div className={`flex-1 text-x ${darkMode ? 'fc-dark-theme' : ''}`}>
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -453,7 +467,9 @@ export default function CalendarPage() {
               }
             }}
             eventContent={(eventInfo) => {
-            
+            // set herer
+          setShowTask(eventInfo.event.title)
+        
               return (
                 <div
                   className={`flex items-center justify-center text-xs rounded px-1 ${
@@ -461,8 +477,8 @@ export default function CalendarPage() {
                   }`}
                   style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
                 >
-                  {eventInfo.event.title}
-                </div>
+                  {eventInfo.event.title} 
+                </div> 
               );
             }}
           />
