@@ -432,7 +432,9 @@ export default function CalendarPage() {
               const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date);
               const day = date.getDate();
               const month = date.getMonth() + 1;
-              return `${weekday} ${day}/${month}`;
+      
+            
+              return `${weekday}  `;
             }}
                
             height="120%"
