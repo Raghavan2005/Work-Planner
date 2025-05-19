@@ -1,7 +1,7 @@
 
-# 🚀 Project Title: Work Planner Next
+# 🚀 Project Title: Work Planner
 ## 📌 Overview
-[Brief one-paragraph summary of what this project does. Describe its purpose and core functionality.]
+A task management system integrated with Firebase. Users can create tasks, delete tasks, and assign tasks to specific users for efficient collaboration.
 
 ## 🧠 Key Features
 - ✅ [Web App Integration]
@@ -24,7 +24,6 @@
 - 🌐 Web
 
 ## ⚙️ System Architecture
-> _Describe how the system components interact — frontend, backend, database, and hardware._
 ```mermaid
 graph TD
   User -->|UI Input| Frontend
